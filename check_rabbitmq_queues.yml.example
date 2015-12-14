@@ -1,0 +1,7 @@
+queues:
+    gcm:
+        critical: 0
+        warning: 0
+    apn:
+        critical: 0
+        warning: 0
