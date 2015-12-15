@@ -1,5 +1,5 @@
 # check_rabbitmq_queues #
-Nagios plugin written in python for checking if queue lengths does not exceed thresholds specified in config.
+Nagios plugin written in python for checking if queue lengths do not exceed thresholds specified in config.
 
 ## Installation ##
 ```
