@@ -26,3 +26,9 @@ queues:
         critical: 0
         warning: 0
 ```
+
+## Tests ##
+In project directory:
+```
+tox
+```
