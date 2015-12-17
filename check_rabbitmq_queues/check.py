@@ -66,6 +66,9 @@ def check_lengths(client, vhost, queues):
     """
 
     stats = Stats(lengths={}, errors={'critical': [], 'warning': []})
+    stdout = sys.stdout
+    temp_stdout = open(os.devnull, 'w')
+    sys.stdout = temp_stdout
 
     for queue, thresholds in queues.items():
         try:
@@ -92,6 +95,9 @@ def check_lengths(client, vhost, queues):
                 stats.errors['warning'].append(queue)
 
             stats.lengths[queue] = length
+
+    sys.stdout = stdout
+    temp_stdout.close()
 
     return stats
 
