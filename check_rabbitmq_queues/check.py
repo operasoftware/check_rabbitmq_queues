@@ -73,9 +73,11 @@ def check_lengths(client, vhost, queues):
         for queue, thresholds in queues.items():
             try:
                 length = client.get_queue_depth(vhost, queue)
-            except (NetworkError, HTTPError) as e:
+            except (NetworkError, HTTPError, KeyError) as e:
                 if isinstance(e, NetworkError):
                     warning = 'Can not communicate with RabbitMQ.'
+                elif isinstance(e, KeyError):
+                    warning = 'Cannot obtain queue data.'
                 elif e.status == 404:
                     warning = 'Queue not found.'
                 elif e.status == 401:
