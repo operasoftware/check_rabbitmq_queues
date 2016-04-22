@@ -3,17 +3,15 @@ Check lengths of RabbitMQ queues and exit with proper return code based on
 thresholds defined in provided configuration file.
 """
 
-from collections import namedtuple
 import logging
 import os
 import sys
+from collections import namedtuple
 
-from argh import arg, dispatch_command
 import yaml
-
+from argh import arg, dispatch_command
 from pyrabbit.api import Client
 from pyrabbit.http import NetworkError, HTTPError
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('check_rabbitmq_queues')
@@ -66,38 +64,40 @@ def check_lengths(client, vhost, queues):
     """
 
     stats = Stats(lengths={}, errors={'critical': [], 'warning': []})
-    stdout = sys.stdout
-    temp_stdout = open(os.devnull, 'w')
-    sys.stdout = temp_stdout
 
-    for queue, thresholds in queues.items():
-        try:
-            length = client.get_queue_depth(vhost, queue)
-        except (NetworkError, HTTPError) as e:
-            if isinstance(e, NetworkError):
-                warning = 'Can not communicate with RabbitMQ.'
-            elif e.status == 404:
-                warning = 'Queue not found.'
-            elif e.status == 401:
-                warning = 'Unauthorized.'
-            else:
-                warning = 'Unhandled HTTP error, status: %s' % e.status
+    try:
+        stdout = sys.stdout
+        temp_stdout = open(os.devnull, 'w')
+        sys.stdout = temp_stdout
 
-            stats.errors['warning'].append(queue)
-            stats.lengths[queue] = warning
+        for queue, thresholds in queues.items():
+            try:
+                length = client.get_queue_depth(vhost, queue)
+            except (NetworkError, HTTPError) as e:
+                if isinstance(e, NetworkError):
+                    warning = 'Can not communicate with RabbitMQ.'
+                elif e.status == 404:
+                    warning = 'Queue not found.'
+                elif e.status == 401:
+                    warning = 'Unauthorized.'
+                else:
+                    warning = 'Unhandled HTTP error, status: %s' % e.status
 
-        else:
-            length = int(length)
-
-            if length > thresholds['critical']:
-                stats.errors['critical'].append(queue)
-            elif length > thresholds['warning']:
                 stats.errors['warning'].append(queue)
+                stats.lengths[queue] = warning
 
-            stats.lengths[queue] = length
+            else:
+                length = int(length)
 
-    sys.stdout = stdout
-    temp_stdout.close()
+                if length > thresholds['critical']:
+                    stats.errors['critical'].append(queue)
+                elif length > thresholds['warning']:
+                    stats.errors['warning'].append(queue)
+
+                stats.lengths[queue] = length
+    finally:
+            sys.stdout = stdout
+            temp_stdout.close()
 
     return stats
 
@@ -153,6 +153,9 @@ def main():
         dispatch_command(run)
     except Exception as e:
         print 'WARNING - unhandled Exception: %s' % str(e)
+        if os.getenv('CHECK_QUEUES_DEBUG'):
+            import traceback
+            traceback.print_exc()
         sys.exit(1)
 
 
