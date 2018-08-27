@@ -136,13 +136,13 @@ def run(config=DEFAULT_CONFIG):
     stats, errors = check_lengths(client, vhost, queues)
 
     if errors['critical']:
-        print 'CRITICAL - %s.' % format_status(errors['critical'], stats)
+        print('CRITICAL - %s.' % format_status(errors['critical'], stats))
         sys.exit(2)
     elif errors['warning']:
-        print 'WARNING - %s.' % format_status(errors['warning'], stats)
+        print('WARNING - %s.' % format_status(errors['warning'], stats))
         sys.exit(1)
     else:
-        print 'OK - all lengths fine.'
+        print('OK - all lengths fine.')
         sys.exit(0)
 
 
@@ -154,7 +154,7 @@ def main():
     try:
         dispatch_command(run)
     except Exception as e:
-        print 'WARNING - unhandled Exception: %s' % str(e)
+        print('WARNING - unhandled Exception: %s' % str(e))
         if os.getenv('CHECK_QUEUES_DEBUG'):
             import traceback
             traceback.print_exc()
