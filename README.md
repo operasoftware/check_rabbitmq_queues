@@ -27,6 +27,9 @@ queues:
         warning: 0
 ```
 
+You can also provide username and password in `CHECK_RABBITMQ_QUEUES_USERNAME` and `CHECK_RABBITMQ_QUEUES_PASSWORD`
+environmental variables instead if you wish.
+
 ## Tests ##
 In project directory:
 ```
