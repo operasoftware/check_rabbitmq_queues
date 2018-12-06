@@ -27,12 +27,20 @@ DEFAULT_HOSTNAME = 'localhost'
 DEFAULT_PORT = 15672
 
 
-class RabbitWarning(Exception):
-    pass
+class RabbitException(Exception):
+    error_code = 1
+
+    def __init__(self, errors, stats={}):
+        self.errors = errors
+        self.stats = stats
 
 
-class RabbitCritical(Exception):
-    pass
+class RabbitWarning(RabbitException):
+    error_code = 1
+
+
+class RabbitCritical(RabbitException):
+    error_code = 2
 
 
 def get_config(config_path):
@@ -149,8 +157,7 @@ def get_queues(client, vhost):
             warning = 'Unauthorized.'
         else:
             warning = 'Unhandled HTTP error, status: %s' % e.status
-        print('WARNING - %s.' % warning)
-        raise RabbitWarning()
+        raise RabbitWarning(['all'], {'all': warning})
 
 
 @arg('-c', '--config', help='Path to config')

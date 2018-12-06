@@ -112,33 +112,43 @@ class GetQueuesTestCase(TestCase):
     def test_network_error(self):
         self.client_mock.get_queues.side_effect = NetworkError()
 
-        with self.assertRaises(RabbitWarning):
+        with self.assertRaises(RabbitWarning) as excinfo:
             get_queues(self.client_mock, self.vhost_mock)
 
+        self.assertEqual(excinfo.exception.errors, ['all'])
+        self.assertEqual(excinfo.exception.stats,
+                         {'all': 'Can not communicate with RabbitMQ.'})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_404(self):
         self.client_mock.get_queues.side_effect = HTTPError('', status=404)
 
-        with self.assertRaises(RabbitWarning):
+        with self.assertRaises(RabbitWarning) as excinfo:
             get_queues(self.client_mock, self.vhost_mock)
 
+        self.assertEqual(excinfo.exception.errors, ['all'])
+        self.assertEqual(excinfo.exception.stats, {'all': 'Queue not found.'})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_401(self):
         self.client_mock.get_queues.side_effect = HTTPError('', status=401)
 
-        with self.assertRaises(RabbitWarning):
+        with self.assertRaises(RabbitWarning) as excinfo:
             get_queues(self.client_mock, self.vhost_mock)
 
+        self.assertEqual(excinfo.exception.errors, ['all'])
+        self.assertEqual(excinfo.exception.stats, {'all': 'Unauthorized.'})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_unknown_error(self):
         self.client_mock.get_queues.side_effect = HTTPError('', status=500)
 
-        with self.assertRaises(RabbitWarning):
+        with self.assertRaises(RabbitWarning) as excinfo:
             get_queues(self.client_mock, self.vhost_mock)
 
+        self.assertEqual(excinfo.exception.errors, ['all'])
+        self.assertEqual(excinfo.exception.stats,
+                         {'all': 'Unhandled HTTP error, status: 500'})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
 
