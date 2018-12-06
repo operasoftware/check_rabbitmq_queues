@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 from collections import namedtuple
+from contextlib import contextmanager
 
 import yaml
 from argh import arg, dispatch_command
@@ -24,6 +25,14 @@ DEFAULT_PASSWORD = 'guest'
 DEFAULT_VHOST = '/'
 DEFAULT_HOSTNAME = 'localhost'
 DEFAULT_PORT = 15672
+
+
+class RabbitWarning(Exception):
+    pass
+
+
+class RabbitCritical(Exception):
+    pass
 
 
 def get_config(config_path):
@@ -50,6 +59,18 @@ def get_client(cfg):
                     cfg.get('username', DEFAULT_USERNAME),
                     cfg.get('password', DEFAULT_PASSWORD))
     return client
+
+
+@contextmanager
+def supress_output():
+    stdout = sys.stdout
+    temp_stdout = open(os.devnull, 'w')
+    sys.stdout = temp_stdout
+    try:
+        yield temp_stdout
+    finally:
+        sys.stdout = stdout
+        temp_stdout.close()
 
 
 def check_lengths(client, vhost, queues):
@@ -115,6 +136,23 @@ def format_status(errors, stats):
     return msg
 
 
+def get_queues(client, vhost):
+    try:
+        with supress_output():
+            return client.get_queues(vhost)
+    except (NetworkError, HTTPError) as e:
+        if isinstance(e, NetworkError):
+            warning = 'Can not communicate with RabbitMQ.'
+        elif e.status == 404:
+            warning = 'Queue not found.'
+        elif e.status == 401:
+            warning = 'Unauthorized.'
+        else:
+            warning = 'Unhandled HTTP error, status: %s' % e.status
+        print('WARNING - %s.' % warning)
+        raise RabbitWarning()
+
+
 @arg('-c', '--config', help='Path to config')
 def run(config=DEFAULT_CONFIG):
     """
@@ -133,6 +171,7 @@ def run(config=DEFAULT_CONFIG):
     queues = cfg.get('queues', {})
 
     client = get_client(cfg)
+
     stats, errors = check_lengths(client, vhost, queues)
 
     if errors['critical']:
