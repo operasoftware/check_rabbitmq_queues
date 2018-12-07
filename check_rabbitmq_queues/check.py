@@ -119,12 +119,12 @@ def check_lengths(queues, queue_conf, queue_prefix_conf):
                 elif length > thresholds['warning']:
                     warnings.append(name)
 
-            stats[name] = length
+            stats[name] = [length]
 
     missing = list(filter(lambda q: q not in stats, queue_conf.keys()))
     warnings.extend(missing)
     for q in missing:
-        stats[q] = 'Queue not found'
+        stats[q] = ['Queue not found']
 
     if errors:
         raise RabbitCritical(errors, stats)
@@ -141,7 +141,8 @@ def format_status(errors, stats):
     :param stats: dict with lengths of all queues
     :return: formatted string
     """
-    msg = ' '.join('%s(%s)' % (q, stats[q]) for q in errors)
+    msg = ' '.join('%s(%s)' % (q, ', '.join((str(x) for x in stats[q])))
+                   for q in errors)
     return msg
 
 
@@ -163,7 +164,7 @@ def get_queues(client, vhost):
             warning = 'Unauthorized.'
         else:
             warning = 'Unhandled HTTP error, status: %s' % e.status
-        raise RabbitWarning(['all'], {'all': warning})
+        raise RabbitWarning(['all'], {'all': [warning]})
 
 
 @arg('-c', '--config', help='Path to config')

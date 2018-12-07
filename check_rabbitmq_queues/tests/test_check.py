@@ -26,7 +26,7 @@ class CheckLengthsTestCase(TestCase):
         queues = [{'name': 'foo', 'messages': self.normal}]
 
         res = check_lengths(queues, queue_conf, queue_prefix_conf)
-        self.assertEqual(res, {'foo': self.normal})
+        self.assertEqual(res, {'foo': [self.normal]})
 
     def test_warning(self):
         queue_conf = {'foo': self.thresholds}
@@ -41,8 +41,8 @@ class CheckLengthsTestCase(TestCase):
 
         exc = excinfo.exception
         self.assertEqual(exc.errors, ['foo', 'local_bar'])
-        self.assertEqual(exc.stats, {'foo': self.warning,
-                                     'local_bar': self.warning})
+        self.assertEqual(exc.stats, {'foo': [self.warning],
+                                     'local_bar': [self.warning]})
 
     def test_critical(self):
         queue_conf = {'foo': self.thresholds}
@@ -57,8 +57,8 @@ class CheckLengthsTestCase(TestCase):
 
         exc = excinfo.exception
         self.assertEqual(exc.errors, ['foo', 'local_bar'])
-        self.assertEqual(exc.stats, {'foo': self.critical,
-                                     'local_bar': self.critical})
+        self.assertEqual(exc.stats, {'foo': [self.critical],
+                                     'local_bar': [self.critical]})
 
     def test_desired_queue_not_in_rabbit(self):
         queue_conf = {'foo': self.thresholds, 'bar': self.thresholds}
@@ -70,8 +70,8 @@ class CheckLengthsTestCase(TestCase):
 
         exc = excinfo.exception
         self.assertEqual(exc.errors, ['foo', 'bar'])
-        self.assertEqual(exc.stats, {'foo': self.warning,
-                                     'bar': 'Queue not found'})
+        self.assertEqual(exc.stats, {'foo': [self.warning],
+                                     'bar': ['Queue not found']})
 
     def test_criticals_take_precedence_over_warnings(self):
         queue_conf = {'foo': self.thresholds, 'bar': self.thresholds}
@@ -86,8 +86,8 @@ class CheckLengthsTestCase(TestCase):
 
         exc = excinfo.exception
         self.assertEqual(exc.errors, ['bar'])
-        self.assertEqual(exc.stats, {'foo': self.warning,
-                                     'bar': self.critical})
+        self.assertEqual(exc.stats, {'foo': [self.warning],
+                                     'bar': [self.critical]})
 
     def test_override_prefix_threshold(self):
         lower_thresholds = {
@@ -106,7 +106,7 @@ class CheckLengthsTestCase(TestCase):
 
         exc = excinfo.exception
         self.assertEqual(exc.errors, ['test_foo'])
-        self.assertEqual(exc.stats, {'test_foo': lower_warning})
+        self.assertEqual(exc.stats, {'test_foo': [lower_warning]})
 
 
 class GetQueuesTestCase(TestCase):
@@ -129,7 +129,7 @@ class GetQueuesTestCase(TestCase):
 
         self.assertEqual(excinfo.exception.errors, ['all'])
         self.assertEqual(excinfo.exception.stats,
-                         {'all': 'Can not communicate with RabbitMQ.'})
+                         {'all': ['Can not communicate with RabbitMQ.']})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_404(self):
@@ -139,7 +139,8 @@ class GetQueuesTestCase(TestCase):
             get_queues(self.client_mock, self.vhost_mock)
 
         self.assertEqual(excinfo.exception.errors, ['all'])
-        self.assertEqual(excinfo.exception.stats, {'all': 'Queue not found.'})
+        self.assertEqual(excinfo.exception.stats, {'all':
+                                                   ['Queue not found.']})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_401(self):
@@ -149,7 +150,7 @@ class GetQueuesTestCase(TestCase):
             get_queues(self.client_mock, self.vhost_mock)
 
         self.assertEqual(excinfo.exception.errors, ['all'])
-        self.assertEqual(excinfo.exception.stats, {'all': 'Unauthorized.'})
+        self.assertEqual(excinfo.exception.stats, {'all': ['Unauthorized.']})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_unknown_error(self):
@@ -160,7 +161,7 @@ class GetQueuesTestCase(TestCase):
 
         self.assertEqual(excinfo.exception.errors, ['all'])
         self.assertEqual(excinfo.exception.stats,
-                         {'all': 'Unhandled HTTP error, status: 500'})
+                         {'all': ['Unhandled HTTP error, status: 500']})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
 
