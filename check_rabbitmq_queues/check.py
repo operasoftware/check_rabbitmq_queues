@@ -126,7 +126,6 @@ def check_lengths(queues, queue_conf, queue_prefix_conf):
     for q in missing:
         stats[q] = 'Queue not found'
 
-    print(stats)
     if errors:
         raise RabbitCritical(errors, stats)
     elif warnings:
