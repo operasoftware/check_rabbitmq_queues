@@ -61,10 +61,13 @@ def get_client(cfg):
     :param cfg: config dict
     :return: RabbitMQ client object
     """
+    username_from_env = os.getenv('CHECK_RABBITMQ_QUEUES_USERNAME')
+    password_from_env = os.getenv('CHECK_RABBITMQ_QUEUES_PASSWORD')
+
     client = Client('%s:%s' % (cfg.get('host', DEFAULT_HOSTNAME),
                                cfg.get('port', DEFAULT_PORT)),
-                    cfg.get('username', DEFAULT_USERNAME),
-                    cfg.get('password', DEFAULT_PASSWORD))
+                    username_from_env or cfg.get('username', DEFAULT_USERNAME),
+                    password_from_env or cfg.get('password', DEFAULT_PASSWORD))
     return client
 
 
