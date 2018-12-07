@@ -83,7 +83,7 @@ def supress_output():
         temp_stdout.close()
 
 
-def check_lengths(queues, queue_conf):
+def check_lengths(queues, queue_conf, queue_prefix_conf):
     """
     Check queue length
     :params queues: Queues from rabbit
@@ -93,6 +93,7 @@ def check_lengths(queues, queue_conf):
     errors = []
     warnings = []
     stats = {}
+    prefixes = sorted(queue_prefix_conf.keys(), key=len, reverse=True)
     for queue in queues:
         try:
             name = queue['name']
@@ -100,8 +101,16 @@ def check_lengths(queues, queue_conf):
         except KeyError:
             pass
         else:
+            thresholds = None
             if name in queue_conf:
                 thresholds = queue_conf[name]
+            else:
+                prefix = next((p for p in prefixes if name.startswith(p)),
+                              None)
+                if prefix:
+                    thresholds = queue_prefix_conf[prefix]
+
+            if thresholds:
                 if length > thresholds['critical']:
                     errors.append(name)
                 elif length > thresholds['warning']:
@@ -114,6 +123,7 @@ def check_lengths(queues, queue_conf):
     for q in missing:
         stats[q] = 'Queue not found'
 
+    print(stats)
     if errors:
         raise RabbitCritical(errors, stats)
     elif warnings:
@@ -169,13 +179,14 @@ def run(config=DEFAULT_CONFIG):
     cfg = get_config(config)
 
     vhost = cfg.get('vhost', DEFAULT_VHOST)
-    queues = cfg.get('queues', {})
+    queues_conf = cfg.get('queues', {})
+    prefixes_conf = cfg.get('queue_prefixes', {})
 
     client = get_client(cfg)
 
     try:
-        q = get_queues(client, vhost)
-        check_lengths(q, queues)
+        queues = get_queues(client, vhost)
+        check_lengths(queues, queues_conf, prefixes_conf)
     except RabbitException as e:
         print(e.prefix % format_status(e.errors, e.stats))
         sys.exit(e.error_code)

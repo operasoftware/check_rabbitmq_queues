@@ -22,39 +22,51 @@ class CheckLengthsTestCase(TestCase):
 
     def test_ok(self):
         queue_conf = {'foo': self.thresholds}
+        queue_prefix_conf = {}
         queues = [{'name': 'foo', 'messages': self.normal}]
 
-        res = check_lengths(queues, queue_conf)
+        res = check_lengths(queues, queue_conf, queue_prefix_conf)
         self.assertEqual(res, {'foo': self.normal})
 
     def test_warning(self):
         queue_conf = {'foo': self.thresholds}
-        queues = [{'name': 'foo', 'messages': self.warning}]
+        queue_prefix_conf = {'local_': self.thresholds}
+        queues = [
+            {'name': 'foo', 'messages': self.warning},
+            {'name': 'local_bar', 'messages': self.warning},
+        ]
 
         with self.assertRaises(RabbitWarning) as excinfo:
-            check_lengths(queues, queue_conf)
+            check_lengths(queues, queue_conf, queue_prefix_conf)
 
         exc = excinfo.exception
-        self.assertEqual(exc.errors, ['foo'])
-        self.assertEqual(exc.stats, {'foo': self.warning})
+        self.assertEqual(exc.errors, ['foo', 'local_bar'])
+        self.assertEqual(exc.stats, {'foo': self.warning,
+                                     'local_bar': self.warning})
 
     def test_critical(self):
         queue_conf = {'foo': self.thresholds}
-        queues = [{'name': 'foo', 'messages': self.critical}]
+        queue_prefix_conf = {'local_': self.thresholds}
+        queues = [
+            {'name': 'foo', 'messages': self.critical},
+            {'name': 'local_bar', 'messages': self.critical},
+        ]
 
         with self.assertRaises(RabbitCritical) as excinfo:
-            check_lengths(queues, queue_conf)
+            check_lengths(queues, queue_conf, queue_prefix_conf)
 
         exc = excinfo.exception
-        self.assertEqual(exc.errors, ['foo'])
-        self.assertEqual(exc.stats, {'foo': self.critical})
+        self.assertEqual(exc.errors, ['foo', 'local_bar'])
+        self.assertEqual(exc.stats, {'foo': self.critical,
+                                     'local_bar': self.critical})
 
     def test_desired_queue_not_in_rabbit(self):
         queue_conf = {'foo': self.thresholds, 'bar': self.thresholds}
+        queue_prefix_conf = {'test_': self.thresholds}
         queues = [{'name': 'foo', 'messages': self.warning}]
 
         with self.assertRaises(RabbitWarning) as excinfo:
-            check_lengths(queues, queue_conf)
+            check_lengths(queues, queue_conf, queue_prefix_conf)
 
         exc = excinfo.exception
         self.assertEqual(exc.errors, ['foo', 'bar'])
@@ -63,18 +75,38 @@ class CheckLengthsTestCase(TestCase):
 
     def test_criticals_take_precedence_over_warnings(self):
         queue_conf = {'foo': self.thresholds, 'bar': self.thresholds}
+        queue_prefix_conf = {}
         queues = [
             {'name': 'foo', 'messages': self.warning},
             {'name': 'bar', 'messages': self.critical},
         ]
 
         with self.assertRaises(RabbitCritical) as excinfo:
-            check_lengths(queues, queue_conf)
+            check_lengths(queues, queue_conf, queue_prefix_conf)
 
         exc = excinfo.exception
         self.assertEqual(exc.errors, ['bar'])
         self.assertEqual(exc.stats, {'foo': self.warning,
                                      'bar': self.critical})
+
+    def test_override_prefix_threshold(self):
+        lower_thresholds = {
+            'warning': self.thresholds['warning']/2,
+            'critical': self.thresholds['critical']/2,
+        }
+        lower_warning = lower_thresholds['warning'] + 1
+        self.assertTrue(lower_warning < self.thresholds['warning'])
+
+        queue_conf = {'test_foo': lower_thresholds}
+        queue_prefix_conf = {'test_': self.thresholds}
+        queues = [{'name': 'test_foo', 'messages': lower_warning}]
+
+        with self.assertRaises(RabbitWarning) as excinfo:
+            check_lengths(queues, queue_conf, queue_prefix_conf)
+
+        exc = excinfo.exception
+        self.assertEqual(exc.errors, ['test_foo'])
+        self.assertEqual(exc.stats, {'test_foo': lower_warning})
 
 
 class GetQueuesTestCase(TestCase):
