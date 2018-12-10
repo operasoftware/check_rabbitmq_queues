@@ -6,7 +6,7 @@ thresholds defined in provided configuration file.
 import logging
 import os
 import sys
-from collections import namedtuple
+from contextlib import contextmanager
 
 import yaml
 from argh import arg, dispatch_command
@@ -15,7 +15,6 @@ from pyrabbit.http import NetworkError, HTTPError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('check_rabbitmq_queues')
-Stats = namedtuple('Stats', ['lengths', 'errors'])
 
 
 DEFAULT_CONFIG = '/usr/local/etc/check_rabbitmq_queues.yml'
@@ -24,6 +23,23 @@ DEFAULT_PASSWORD = 'guest'
 DEFAULT_VHOST = '/'
 DEFAULT_HOSTNAME = 'localhost'
 DEFAULT_PORT = 15672
+
+
+class RabbitException(Exception):
+
+    def __init__(self, errors, stats={}):
+        self.errors = errors
+        self.stats = stats
+
+
+class RabbitWarning(RabbitException):
+    error_code = 1
+    prefix = 'WARNING - %s.'
+
+
+class RabbitCritical(RabbitException):
+    error_code = 2
+    prefix = 'CRITICAL - %s.'
 
 
 def get_config(config_path):
@@ -55,54 +71,65 @@ def get_client(cfg):
     return client
 
 
-def check_lengths(client, vhost, queues):
+@contextmanager
+def supress_output():
     """
-    Check queues lengths.
-    :param client: RabbitMQ client object
-    :param vhost: RabbitMQ vhost name
-    :param queues: queues to check
-    :return: Stats(lengths=dict(queue_name: length),
-                   errors=dict('critical': list queues with critical lengths,
-                               'warning': list of queues with warning lengths))
+    Supress debug output
     """
-
-    stats = Stats(lengths={}, errors={'critical': [], 'warning': []})
-
+    stdout = sys.stdout
+    temp_stdout = open(os.devnull, 'w')
+    sys.stdout = temp_stdout
     try:
-        stdout = sys.stdout
-        temp_stdout = open(os.devnull, 'w')
-        sys.stdout = temp_stdout
-
-        for queue, thresholds in queues.items():
-            try:
-                length = client.get_queue_depth(vhost, queue)
-            except (NetworkError, HTTPError, KeyError) as e:
-                if isinstance(e, NetworkError):
-                    warning = 'Can not communicate with RabbitMQ.'
-                elif isinstance(e, KeyError):
-                    warning = 'Cannot obtain queue data.'
-                elif e.status == 404:
-                    warning = 'Queue not found.'
-                elif e.status == 401:
-                    warning = 'Unauthorized.'
-                else:
-                    warning = 'Unhandled HTTP error, status: %s' % e.status
-
-                stats.errors['warning'].append(queue)
-                stats.lengths[queue] = warning
-
-            else:
-                length = int(length)
-
-                if length > thresholds['critical']:
-                    stats.errors['critical'].append(queue)
-                elif length > thresholds['warning']:
-                    stats.errors['warning'].append(queue)
-
-                stats.lengths[queue] = length
+        yield temp_stdout
     finally:
-            sys.stdout = stdout
-            temp_stdout.close()
+        sys.stdout = stdout
+        temp_stdout.close()
+
+
+def check_lengths(queues, queue_conf, queue_prefix_conf):
+    """
+    Check queue length
+    :params queues: Queues from rabbit
+    :params queue_conf: Queues to check
+    :raises: RabbitException with list of faulty queues and reasons
+    """
+    errors = []
+    warnings = []
+    stats = {}
+    prefixes = sorted(queue_prefix_conf.keys(), key=len, reverse=True)
+    for queue in queues:
+        try:
+            name = queue['name']
+            length = queue['messages']  # TODO: maybe change to messages_ready
+        except KeyError:
+            pass
+        else:
+            thresholds = None
+            if name in queue_conf:
+                thresholds = queue_conf[name]
+            else:
+                prefix = next((p for p in prefixes if name.startswith(p)),
+                              None)
+                if prefix:
+                    thresholds = queue_prefix_conf[prefix]
+
+            if thresholds:
+                if length > thresholds['critical']:
+                    errors.append(name)
+                elif length > thresholds['warning']:
+                    warnings.append(name)
+
+            stats[name] = length
+
+    missing = list(filter(lambda q: q not in stats, queue_conf.keys()))
+    warnings.extend(missing)
+    for q in missing:
+        stats[q] = 'Queue not found'
+
+    if errors:
+        raise RabbitCritical(errors, stats)
+    elif warnings:
+        raise RabbitWarning(warnings, stats)
 
     return stats
 
@@ -116,6 +143,27 @@ def format_status(errors, stats):
     """
     msg = ' '.join('%s(%s)' % (q, stats[q]) for q in errors)
     return msg
+
+
+def get_queues(client, vhost):
+    """
+    Get all queues info from rabbitmq
+    :param client: RabbitMQ client object
+    :param vhost: RabbitMQ vhost name
+    """
+    try:
+        with supress_output():
+            return client.get_queues(vhost)
+    except (NetworkError, HTTPError) as e:
+        if isinstance(e, NetworkError):
+            warning = 'Can not communicate with RabbitMQ.'
+        elif e.status == 404:
+            warning = 'Queue not found.'
+        elif e.status == 401:
+            warning = 'Unauthorized.'
+        else:
+            warning = 'Unhandled HTTP error, status: %s' % e.status
+        raise RabbitWarning(['all'], {'all': warning})
 
 
 @arg('-c', '--config', help='Path to config')
@@ -133,17 +181,17 @@ def run(config=DEFAULT_CONFIG):
     cfg = get_config(config)
 
     vhost = cfg.get('vhost', DEFAULT_VHOST)
-    queues = cfg.get('queues', {})
+    queues_conf = cfg.get('queues', {})
+    prefixes_conf = cfg.get('queue_prefixes', {})
 
     client = get_client(cfg)
-    stats, errors = check_lengths(client, vhost, queues)
 
-    if errors['critical']:
-        print('CRITICAL - %s.' % format_status(errors['critical'], stats))
-        sys.exit(2)
-    elif errors['warning']:
-        print('WARNING - %s.' % format_status(errors['warning'], stats))
-        sys.exit(1)
+    try:
+        queues = get_queues(client, vhost)
+        check_lengths(queues, queues_conf, prefixes_conf)
+    except RabbitException as e:
+        print(e.prefix % format_status(e.errors, e.stats))
+        sys.exit(e.error_code)
     else:
         print('OK - all lengths fine.')
         sys.exit(0)

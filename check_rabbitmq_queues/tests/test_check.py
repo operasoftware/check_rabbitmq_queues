@@ -3,7 +3,13 @@ from unittest import TestCase
 from mock import patch, Mock
 from pyrabbit.http import NetworkError, HTTPError
 
-from check_rabbitmq_queues.check import check_lengths, run
+from check_rabbitmq_queues.check import (
+    check_lengths,
+    get_queues,
+    RabbitCritical,
+    RabbitWarning,
+    run,
+)
 
 MODULE = 'check_rabbitmq_queues.check'
 
@@ -11,107 +17,172 @@ MODULE = 'check_rabbitmq_queues.check'
 class CheckLengthsTestCase(TestCase):
     thresholds = {'warning': 100, 'critical': 1000}
     normal = thresholds['warning'] - 1
+    warning = thresholds['warning'] + 1
+    critical = thresholds['critical'] + 1
 
     def test_ok(self):
-        queues = {'foo': self.thresholds}
-        client_mock = Mock()
-        client_mock.get_queue_depth.return_value = self.normal
+        queue_conf = {'foo': self.thresholds}
+        queue_prefix_conf = {}
+        queues = [{'name': 'foo', 'messages': self.normal}]
 
-        stats, errors = check_lengths(client_mock, Mock(), queues)
-
-        self.assertEqual(
-            stats, {'foo': client_mock.get_queue_depth.return_value})
-        self.assertEqual(errors, {'critical': [], 'warning': []})
+        res = check_lengths(queues, queue_conf, queue_prefix_conf)
+        self.assertEqual(res, {'foo': self.normal})
 
     def test_warning(self):
-        queues = {'foo': self.thresholds}
-        client_mock = Mock()
-        client_mock.get_queue_depth.return_value =\
-            self.thresholds['warning'] + 1
+        queue_conf = {'foo': self.thresholds}
+        queue_prefix_conf = {'local_': self.thresholds}
+        queues = [
+            {'name': 'foo', 'messages': self.warning},
+            {'name': 'local_bar', 'messages': self.warning},
+        ]
 
-        stats, errors = check_lengths(client_mock, Mock(), queues)
+        with self.assertRaises(RabbitWarning) as excinfo:
+            check_lengths(queues, queue_conf, queue_prefix_conf)
 
-        self.assertEqual(
-            stats, {'foo': client_mock.get_queue_depth.return_value})
-        self.assertEqual(errors, {'critical': [], 'warning': ['foo']})
+        exc = excinfo.exception
+        self.assertEqual(exc.errors, ['foo', 'local_bar'])
+        self.assertEqual(exc.stats, {'foo': self.warning,
+                                     'local_bar': self.warning})
 
     def test_critical(self):
-        queues = {'foo': self.thresholds}
-        client_mock = Mock()
-        client_mock.get_queue_depth.return_value =\
-            self.thresholds['critical'] + 1
+        queue_conf = {'foo': self.thresholds}
+        queue_prefix_conf = {'local_': self.thresholds}
+        queues = [
+            {'name': 'foo', 'messages': self.critical},
+            {'name': 'local_bar', 'messages': self.critical},
+        ]
 
-        stats, errors = check_lengths(client_mock, Mock(), queues)
+        with self.assertRaises(RabbitCritical) as excinfo:
+            check_lengths(queues, queue_conf, queue_prefix_conf)
 
-        self.assertEqual(
-            stats, {'foo': client_mock.get_queue_depth.return_value})
-        self.assertEqual(errors, {'critical': ['foo'], 'warning': []})
+        exc = excinfo.exception
+        self.assertEqual(exc.errors, ['foo', 'local_bar'])
+        self.assertEqual(exc.stats, {'foo': self.critical,
+                                     'local_bar': self.critical})
+
+    def test_desired_queue_not_in_rabbit(self):
+        queue_conf = {'foo': self.thresholds, 'bar': self.thresholds}
+        queue_prefix_conf = {'test_': self.thresholds}
+        queues = [{'name': 'foo', 'messages': self.warning}]
+
+        with self.assertRaises(RabbitWarning) as excinfo:
+            check_lengths(queues, queue_conf, queue_prefix_conf)
+
+        exc = excinfo.exception
+        self.assertEqual(exc.errors, ['foo', 'bar'])
+        self.assertEqual(exc.stats, {'foo': self.warning,
+                                     'bar': 'Queue not found'})
+
+    def test_criticals_take_precedence_over_warnings(self):
+        queue_conf = {'foo': self.thresholds, 'bar': self.thresholds}
+        queue_prefix_conf = {}
+        queues = [
+            {'name': 'foo', 'messages': self.warning},
+            {'name': 'bar', 'messages': self.critical},
+        ]
+
+        with self.assertRaises(RabbitCritical) as excinfo:
+            check_lengths(queues, queue_conf, queue_prefix_conf)
+
+        exc = excinfo.exception
+        self.assertEqual(exc.errors, ['bar'])
+        self.assertEqual(exc.stats, {'foo': self.warning,
+                                     'bar': self.critical})
+
+    def test_override_prefix_threshold(self):
+        lower_thresholds = {
+            'warning': self.thresholds['warning']/2,
+            'critical': self.thresholds['critical']/2,
+        }
+        lower_warning = lower_thresholds['warning'] + 1
+        self.assertTrue(lower_warning < self.thresholds['warning'])
+
+        queue_conf = {'test_foo': lower_thresholds}
+        queue_prefix_conf = {'test_': self.thresholds}
+        queues = [{'name': 'test_foo', 'messages': lower_warning}]
+
+        with self.assertRaises(RabbitWarning) as excinfo:
+            check_lengths(queues, queue_conf, queue_prefix_conf)
+
+        exc = excinfo.exception
+        self.assertEqual(exc.errors, ['test_foo'])
+        self.assertEqual(exc.stats, {'test_foo': lower_warning})
+
+
+class GetQueuesTestCase(TestCase):
+
+    def setUp(self):
+        self.client_mock = Mock()
+        self.vhost_mock = Mock()
+
+    def test_ok(self):
+        res = get_queues(self.client_mock, self.vhost_mock)
+
+        self.assertEqual(res, self.client_mock.get_queues.return_value)
+        self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_network_error(self):
-        queues = {'foo': self.thresholds}
-        client_mock = Mock()
-        client_mock.get_queue_depth.side_effect = NetworkError()
+        self.client_mock.get_queues.side_effect = NetworkError()
 
-        stats, errors = check_lengths(client_mock, Mock(), queues)
+        with self.assertRaises(RabbitWarning) as excinfo:
+            get_queues(self.client_mock, self.vhost_mock)
 
-        self.assertEqual(
-            stats, {'foo': 'Can not communicate with RabbitMQ.'})
-        self.assertEqual(errors, {'critical': [], 'warning': ['foo']})
+        self.assertEqual(excinfo.exception.errors, ['all'])
+        self.assertEqual(excinfo.exception.stats,
+                         {'all': 'Can not communicate with RabbitMQ.'})
+        self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_404(self):
-        queues = {'foo': self.thresholds}
-        client_mock = Mock()
-        client_mock.get_queue_depth.side_effect = HTTPError('', status=404)
+        self.client_mock.get_queues.side_effect = HTTPError('', status=404)
 
-        stats, errors = check_lengths(client_mock, Mock(), queues)
+        with self.assertRaises(RabbitWarning) as excinfo:
+            get_queues(self.client_mock, self.vhost_mock)
 
-        self.assertEqual(
-            stats, {'foo': 'Queue not found.'})
-        self.assertEqual(errors, {'critical': [], 'warning': ['foo']})
+        self.assertEqual(excinfo.exception.errors, ['all'])
+        self.assertEqual(excinfo.exception.stats, {'all': 'Queue not found.'})
+        self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_401(self):
-        queues = {'foo': self.thresholds}
-        client_mock = Mock()
-        client_mock.get_queue_depth.side_effect = HTTPError('', status=401)
+        self.client_mock.get_queues.side_effect = HTTPError('', status=401)
 
-        stats, errors = check_lengths(client_mock, Mock(), queues)
+        with self.assertRaises(RabbitWarning) as excinfo:
+            get_queues(self.client_mock, self.vhost_mock)
 
-        self.assertEqual(
-            stats, {'foo': 'Unauthorized.'})
-        self.assertEqual(errors, {'critical': [], 'warning': ['foo']})
+        self.assertEqual(excinfo.exception.errors, ['all'])
+        self.assertEqual(excinfo.exception.stats, {'all': 'Unauthorized.'})
+        self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_unknown_error(self):
-        queues = {'foo': self.thresholds}
-        client_mock = Mock()
-        client_mock.get_queue_depth.side_effect = HTTPError('', status=500)
+        self.client_mock.get_queues.side_effect = HTTPError('', status=500)
 
-        stats, errors = check_lengths(client_mock, Mock(), queues)
+        with self.assertRaises(RabbitWarning) as excinfo:
+            get_queues(self.client_mock, self.vhost_mock)
 
-        self.assertEqual(
-            stats, {'foo': 'Unhandled HTTP error, status: 500'})
-        self.assertEqual(errors, {'critical': [], 'warning': ['foo']})
+        self.assertEqual(excinfo.exception.errors, ['all'])
+        self.assertEqual(excinfo.exception.stats,
+                         {'all': 'Unhandled HTTP error, status: 500'})
+        self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
 
 @patch(MODULE + '.get_config', Mock())
 @patch(MODULE + '.format_status', Mock())
-@patch(MODULE + '.check_lengths')
+@patch(MODULE + '.check_lengths', Mock())
+@patch(MODULE + '.get_queues')
 @patch(MODULE + '.sys.exit')
 class RunTestCase(TestCase):
 
-    def test_ok(self, exit_mock, check_lengths_mock):
-        check_lengths_mock.return_value = Mock(), \
-                                          {'warning': [], 'critical': []}
+    def test_ok(self, exit_mock, get_queues_mock):
         run()
         exit_mock.assert_called_once_with(0)
 
-    def test_warning(self, exit_mock, check_lengths_mock):
-        check_lengths_mock.return_value = Mock(), \
-                                          {'warning': ['foo'], 'critical': []}
+    def test_warning(self, exit_mock, get_queues_mock):
+        get_queues_mock.side_effect = RabbitWarning(['all'])
+
         run()
         exit_mock.assert_called_once_with(1)
 
-    def test_critical(self, exit_mock, check_lengths_mock):
-        check_lengths_mock.return_value = Mock(), \
-                                          {'warning': [], 'critical': ['foo']}
+    def test_critical(self, exit_mock, get_queues_mock):
+        get_queues_mock.side_effect = RabbitCritical(['all'])
+
         run()
         exit_mock.assert_called_once_with(2)
