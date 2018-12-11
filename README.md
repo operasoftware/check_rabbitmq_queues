@@ -22,7 +22,13 @@ queues:
     queue1:
         critical: 0
         warning: 0
+        policy:
+            max-length: 500
     queue2:
+        critical: 0
+        warning: 0
+queue_prefixes:
+    queue-pref:
         critical: 0
         warning: 0
 ```
