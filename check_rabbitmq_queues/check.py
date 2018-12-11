@@ -89,7 +89,7 @@ def supress_output():
 def check_queue(queue, config):
     w = []
     c = []
-    length = queue['messages']
+    length = queue['messages_ready']
     if config:
         if length > config['critical']:
             c.append(length)
@@ -118,7 +118,6 @@ def check_lengths(queues, queue_conf, queue_prefix_conf):
     for queue in queues:
         try:
             name = queue['name']
-            length = queue['messages']  # TODO: maybe change to messages_ready
         except KeyError:
             pass
         else:

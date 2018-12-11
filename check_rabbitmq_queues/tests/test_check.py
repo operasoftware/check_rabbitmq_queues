@@ -27,7 +27,7 @@ class CheckLengthsTestCase(TestCase):
         conf['effective_policy_definition'] = policy_mock
         queue_conf = {'foo': conf}
         queue_prefix_conf = {}
-        queues = [{'name': 'foo', 'messages': self.normal,
+        queues = [{'name': 'foo', 'messages_ready': self.normal,
                    'policy': policy_mock}]
 
         res = check_lengths(queues, queue_conf, queue_prefix_conf)
@@ -37,8 +37,8 @@ class CheckLengthsTestCase(TestCase):
         queue_conf = {'foo': self.thresholds}
         queue_prefix_conf = {'local_': self.thresholds}
         queues = [
-            {'name': 'foo', 'messages': self.warning},
-            {'name': 'local_bar', 'messages': self.warning},
+            {'name': 'foo', 'messages_ready': self.warning},
+            {'name': 'local_bar', 'messages_ready': self.warning},
         ]
 
         with self.assertRaises(RabbitWarning) as excinfo:
@@ -54,8 +54,8 @@ class CheckLengthsTestCase(TestCase):
         queue_conf = {'foo': self.thresholds}
         queue_prefix_conf = {'local_': self.thresholds}
         queues = [
-            {'name': 'foo', 'messages': self.critical},
-            {'name': 'local_bar', 'messages': self.critical},
+            {'name': 'foo', 'messages_ready': self.critical},
+            {'name': 'local_bar', 'messages_ready': self.critical},
         ]
 
         with self.assertRaises(RabbitCritical) as excinfo:
@@ -70,7 +70,7 @@ class CheckLengthsTestCase(TestCase):
     def test_desired_queue_not_in_rabbit(self):
         queue_conf = {'foo': self.thresholds, 'bar': self.thresholds}
         queue_prefix_conf = {'test_': self.thresholds}
-        queues = [{'name': 'foo', 'messages': self.warning}]
+        queues = [{'name': 'foo', 'messages_ready': self.warning}]
 
         with self.assertRaises(RabbitCritical) as excinfo:
             check_lengths(queues, queue_conf, queue_prefix_conf)
@@ -83,8 +83,8 @@ class CheckLengthsTestCase(TestCase):
         queue_conf = {'foo': self.thresholds, 'bar': self.thresholds}
         queue_prefix_conf = {}
         queues = [
-            {'name': 'foo', 'messages': self.warning},
-            {'name': 'bar', 'messages': self.critical},
+            {'name': 'foo', 'messages_ready': self.warning},
+            {'name': 'bar', 'messages_ready': self.critical},
         ]
 
         with self.assertRaises(RabbitCritical) as excinfo:
@@ -105,7 +105,7 @@ class CheckLengthsTestCase(TestCase):
 
         queue_conf = {'test_foo': lower_thresholds}
         queue_prefix_conf = {'test_': self.thresholds}
-        queues = [{'name': 'test_foo', 'messages': lower_warning}]
+        queues = [{'name': 'test_foo', 'messages_ready': lower_warning}]
 
         with self.assertRaises(RabbitWarning) as excinfo:
             check_lengths(queues, queue_conf, queue_prefix_conf)
@@ -118,7 +118,7 @@ class CheckLengthsTestCase(TestCase):
         conf = copy(self.thresholds)
         conf['policy'] = {'max-length': 500}
         queue_conf = {'test_foo': conf}
-        queues = [{'name': 'test_foo', 'messages': self.normal,
+        queues = [{'name': 'test_foo', 'messages_ready': self.normal,
                    'effective_policy_definition': {'max-length': 100}}]
 
         with self.assertRaises(RabbitCritical) as excinfo:
