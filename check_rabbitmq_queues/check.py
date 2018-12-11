@@ -87,27 +87,27 @@ def supress_output():
 
 
 def check_queue(queue, config):
-    w = []
-    c = []
     """
     Check length and policy of a single queue
     :param queue: Queue form rabbit
     :param config: Desired queue state
     :return: length of a queue and lists of warnings and errors
     """
+    warnings = []
+    errors = []
     length = queue['messages_ready']
     if config:
         if length > config['critical']:
-            c.append(length)
+            errors.append(length)
         elif length > config['warning']:
-            w.append(length)
+            warnings.append(length)
 
         policy = config.get('policy')
         queue_policy = queue.get('effective_policy_definition')
         if policy and policy != queue_policy:
-            c.append('Wrong queue policy')
+            errors.append('Wrong queue policy')
 
-    return length, w, c
+    return length, warnings, errors
 
 
 def check_lengths(queues, queue_conf, queue_prefix_conf):
@@ -137,11 +137,11 @@ def check_lengths(queues, queue_conf, queue_prefix_conf):
                 if prefix:
                     config = queue_prefix_conf[prefix]
 
-            length, w, c = check_queue(queue, config)
-            if c:
-                errors[name] = c
-            elif w:
-                warnings[name] = w
+            length, queue_warnings, queue_errors = check_queue(queue, config)
+            if queue_errors:
+                errors[name] = queue_errors
+            elif queue_warnings:
+                warnings[name] = queue_warnings
             stats[name] = length
 
     missing = list(filter(lambda q: q not in stats, queue_conf.keys()))
