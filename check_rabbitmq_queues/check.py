@@ -86,6 +86,24 @@ def supress_output():
         temp_stdout.close()
 
 
+def check_queue(queue, config):
+    w = []
+    c = []
+    length = queue['messages']
+    if config:
+        if length > config['critical']:
+            c.append(length)
+        elif length > config['warning']:
+            w.append(length)
+
+        policy = config.get('policy')
+        queue_policy = queue.get('effective_policy_definition')
+        if policy and policy != queue_policy:
+            w.append('Wrong queue policy')
+
+    return length, w, c
+
+
 def check_lengths(queues, queue_conf, queue_prefix_conf):
     """
     Check queue length
@@ -93,8 +111,8 @@ def check_lengths(queues, queue_conf, queue_prefix_conf):
     :params queue_conf: Queues to check
     :raises: RabbitException with list of faulty queues and reasons
     """
-    errors = []
-    warnings = []
+    errors = {}
+    warnings = {}
     stats = {}
     prefixes = sorted(queue_prefix_conf.keys(), key=len, reverse=True)
     for queue in queues:
@@ -104,27 +122,25 @@ def check_lengths(queues, queue_conf, queue_prefix_conf):
         except KeyError:
             pass
         else:
-            thresholds = None
+            config = None
             if name in queue_conf:
-                thresholds = queue_conf[name]
+                config = queue_conf[name]
             else:
                 prefix = next((p for p in prefixes if name.startswith(p)),
                               None)
                 if prefix:
-                    thresholds = queue_prefix_conf[prefix]
+                    config = queue_prefix_conf[prefix]
 
-            if thresholds:
-                if length > thresholds['critical']:
-                    errors.append(name)
-                elif length > thresholds['warning']:
-                    warnings.append(name)
-
-            stats[name] = [length]
+            length, w, c = check_queue(queue, config)
+            if c:
+                errors[name] = c
+            elif w:
+                warnings[name] = w
+            stats[name] = length
 
     missing = list(filter(lambda q: q not in stats, queue_conf.keys()))
-    warnings.extend(missing)
     for q in missing:
-        stats[q] = ['Queue not found']
+        warnings[q] = ['Queue not found']
 
     if errors:
         raise RabbitCritical(errors, stats)
@@ -134,15 +150,14 @@ def check_lengths(queues, queue_conf, queue_prefix_conf):
     return stats
 
 
-def format_status(errors, stats):
+def format_status(errors):
     """
     Get formatted string with lengths of all queues from errors list.
     :param errors: list of queues with too many messages within
     :param stats: dict with lengths of all queues
     :return: formatted string
     """
-    msg = ' '.join('%s(%s)' % (q, ', '.join((str(x) for x in stats[q])))
-                   for q in errors)
+    msg = ' '.join('%s(%s)' % (q, errors[q]) for q in errors)
     return msg
 
 
@@ -164,7 +179,7 @@ def get_queues(client, vhost):
             warning = 'Unauthorized.'
         else:
             warning = 'Unhandled HTTP error, status: %s' % e.status
-        raise RabbitWarning(['all'], {'all': [warning]})
+        raise RabbitWarning(['all'], {'all': warning})
 
 
 @arg('-c', '--config', help='Path to config')
@@ -191,7 +206,7 @@ def run(config=DEFAULT_CONFIG):
         queues = get_queues(client, vhost)
         check_lengths(queues, queues_conf, prefixes_conf)
     except RabbitException as e:
-        print(e.prefix % format_status(e.errors, e.stats))
+        print(e.prefix % format_status(e.errors))
         sys.exit(e.error_code)
     else:
         print('OK - all lengths fine.')
