@@ -179,7 +179,7 @@ def get_queues(client, vhost):
             warning = 'Unauthorized.'
         else:
             warning = 'Unhandled HTTP error, status: %s' % e.status
-        raise RabbitWarning(['all'], {'all': warning})
+        raise RabbitCritical({'all': [warning]})
 
 
 @arg('-c', '--config', help='Path to config')
