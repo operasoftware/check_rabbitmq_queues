@@ -99,7 +99,7 @@ def check_queue(queue, config):
         policy = config.get('policy')
         queue_policy = queue.get('effective_policy_definition')
         if policy and policy != queue_policy:
-            w.append('Wrong queue policy')
+            c.append('Wrong queue policy')
 
     return length, w, c
 
@@ -140,7 +140,7 @@ def check_lengths(queues, queue_conf, queue_prefix_conf):
 
     missing = list(filter(lambda q: q not in stats, queue_conf.keys()))
     for q in missing:
-        warnings[q] = ['Queue not found']
+        errors[q] = ['Queue not found']
 
     if errors:
         raise RabbitCritical(errors, stats)
