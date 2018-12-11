@@ -27,9 +27,8 @@ DEFAULT_PORT = 15672
 
 class RabbitException(Exception):
 
-    def __init__(self, errors, stats={}):
+    def __init__(self, errors):
         self.errors = errors
-        self.stats = stats
 
 
 class RabbitWarning(RabbitException):
@@ -149,9 +148,9 @@ def check_lengths(queues, queue_conf, queue_prefix_conf):
         errors[q] = ['Queue not found']
 
     if errors:
-        raise RabbitCritical(errors, stats)
+        raise RabbitCritical(errors)
     elif warnings:
-        raise RabbitWarning(warnings, stats)
+        raise RabbitWarning(warnings)
 
     return stats
 

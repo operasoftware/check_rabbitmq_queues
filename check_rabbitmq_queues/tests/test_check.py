@@ -45,8 +45,6 @@ class CheckLengthsTestCase(TestCase):
             check_lengths(queues, queue_conf, queue_prefix_conf)
 
         exc = excinfo.exception
-        self.assertEqual(exc.stats, {'foo': self.warning,
-                                     'local_bar': self.warning})
         self.assertEqual(exc.errors, {'foo': [self.warning],
                                       'local_bar': [self.warning]})
 
@@ -62,8 +60,6 @@ class CheckLengthsTestCase(TestCase):
             check_lengths(queues, queue_conf, queue_prefix_conf)
 
         exc = excinfo.exception
-        self.assertEqual(exc.stats, {'foo': self.critical,
-                                     'local_bar': self.critical})
         self.assertEqual(exc.errors, {'foo': [self.critical],
                                       'local_bar': [self.critical]})
 
@@ -76,7 +72,6 @@ class CheckLengthsTestCase(TestCase):
             check_lengths(queues, queue_conf, queue_prefix_conf)
 
         exc = excinfo.exception
-        self.assertEqual(exc.stats, {'foo': self.warning})
         self.assertEqual(exc.errors, {'bar': ['Queue not found']})
 
     def test_criticals_take_precedence_over_warnings(self):
@@ -91,8 +86,6 @@ class CheckLengthsTestCase(TestCase):
             check_lengths(queues, queue_conf, queue_prefix_conf)
 
         exc = excinfo.exception
-        self.assertEqual(exc.stats, {'foo': self.warning,
-                                     'bar': self.critical})
         self.assertEqual(exc.errors, {'bar': [self.critical]})
 
     def test_override_prefix_threshold(self):
@@ -111,7 +104,6 @@ class CheckLengthsTestCase(TestCase):
             check_lengths(queues, queue_conf, queue_prefix_conf)
 
         exc = excinfo.exception
-        self.assertEqual(exc.stats, {'test_foo': lower_warning})
         self.assertEqual(exc.errors, {'test_foo': [lower_warning]})
 
     def test_policy_is_wrong(self):
@@ -125,7 +117,6 @@ class CheckLengthsTestCase(TestCase):
             check_lengths(queues, queue_conf, {})
 
         exc = excinfo.exception
-        self.assertEqual(exc.stats, {'test_foo': self.normal})
         self.assertEqual(exc.errors, {'test_foo': ['Wrong queue policy']})
 
 
@@ -149,7 +140,6 @@ class GetQueuesTestCase(TestCase):
 
         self.assertEqual(excinfo.exception.errors,
                          {'all': ['Can not communicate with RabbitMQ.']})
-        self.assertEqual(excinfo.exception.stats, {})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_404(self):
@@ -160,7 +150,6 @@ class GetQueuesTestCase(TestCase):
 
         self.assertEqual(excinfo.exception.errors, {'all':
                                                     ['Queue not found.']})
-        self.assertEqual(excinfo.exception.stats, {})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_401(self):
@@ -170,7 +159,6 @@ class GetQueuesTestCase(TestCase):
             get_queues(self.client_mock, self.vhost_mock)
 
         self.assertEqual(excinfo.exception.errors, {'all': ['Unauthorized.']})
-        self.assertEqual(excinfo.exception.stats, {})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
     def test_unknown_error(self):
@@ -181,7 +169,6 @@ class GetQueuesTestCase(TestCase):
 
         self.assertEqual(excinfo.exception.errors,
                          {'all': ['Unhandled HTTP error, status: 500']})
-        self.assertEqual(excinfo.exception.stats, {})
         self.client_mock.get_queues.assert_called_once_with(self.vhost_mock)
 
 
