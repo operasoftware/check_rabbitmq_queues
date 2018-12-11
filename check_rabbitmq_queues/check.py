@@ -89,6 +89,12 @@ def supress_output():
 def check_queue(queue, config):
     w = []
     c = []
+    """
+    Check length and policy of a single queue
+    :param queue: Queue form rabbit
+    :param config: Desired queue state
+    :return: length of a queue and lists of warnings and errors
+    """
     length = queue['messages_ready']
     if config:
         if length > config['critical']:
@@ -106,10 +112,11 @@ def check_queue(queue, config):
 
 def check_lengths(queues, queue_conf, queue_prefix_conf):
     """
-    Check queue length
-    :params queues: Queues from rabbit
-    :params queue_conf: Queues to check
+    Check queues length and policy
+    :param queues: Queues from rabbit
+    :param queue_conf: Queues to check
     :raises: RabbitException with list of faulty queues and reasons
+    :return: Queues lengths
     """
     errors = {}
     warnings = {}
