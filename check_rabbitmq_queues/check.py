@@ -51,7 +51,8 @@ def get_config(config_path):
     if not os.path.exists(config_path):
         logger.error('Configuration file %s does not exist.' % config_path)
         sys.exit(3)
-    return yaml.load(open(config_path))
+    with open(config_path, 'r') as config_file:
+        return yaml.safe_load(config_file)
 
 
 def get_client(cfg):
