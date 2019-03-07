@@ -10,8 +10,8 @@ from contextlib import contextmanager
 
 import yaml
 from argh import arg, dispatch_command
-from pyrabbit.api import Client
-from pyrabbit.http import NetworkError, HTTPError
+from pyrabbit2.api import Client
+from pyrabbit2.http import NetworkError, HTTPError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('check_rabbitmq_queues')
@@ -175,7 +175,7 @@ def get_queues(client, vhost):
     """
     try:
         with supress_output():
-            return client.get_queues(vhost)
+            return client.get_queues(vhost, '^(?!federation:)', regex=True)
     except (NetworkError, HTTPError) as e:
         if isinstance(e, NetworkError):
             warning = 'Can not communicate with RabbitMQ.'

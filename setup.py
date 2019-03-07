@@ -3,12 +3,12 @@ from setuptools import setup
 
 
 setup(name='check-rabbitmq-queues',
-      version='1.4.1',
+      version='1.5.0',
       description='Package for checking current length of RabbitMQ queues.',
       author='Opera Services Team',
       author_email='svc-code@opera.com',
       packages=['check_rabbitmq_queues'],
-      install_requires=['pyrabbit==1.1.0',
+      install_requires=['pyrabbit2==1.0.7',
                         'argh==0.26.1',
                         'PyYAML==3.13'],
       entry_points={
