@@ -96,16 +96,16 @@ def check_queue(queue, config):
     warnings = []
     errors = []
     length = queue['messages_ready']
-    if config:
-        if length > config['critical']:
-            errors.append(length)
-        elif length > config['warning']:
-            warnings.append(length)
 
-        policy = config.get('policy')
-        queue_policy = queue.get('effective_policy_definition')
-        if policy and policy != queue_policy:
-            errors.append('Wrong queue policy')
+    if length > config['critical']:
+        errors.append(length)
+    elif length > config['warning']:
+        warnings.append(length)
+
+    policy = config.get('policy')
+    queue_policy = queue.get('effective_policy_definition')
+    if policy and policy != queue_policy:
+        errors.append('Wrong queue policy')
 
     return length, warnings, errors
 
@@ -137,12 +137,14 @@ def check_lengths(queues, queue_conf, queue_prefix_conf):
                 if prefix:
                     config = queue_prefix_conf[prefix]
 
-            length, queue_warnings, queue_errors = check_queue(queue, config)
-            if queue_errors:
-                errors[name] = queue_errors
-            elif queue_warnings:
-                warnings[name] = queue_warnings
-            stats[name] = length
+            if config:
+                length, queue_warnings, queue_errors = check_queue(queue,
+                                                                   config)
+                if queue_errors:
+                    errors[name] = queue_errors
+                elif queue_warnings:
+                    warnings[name] = queue_warnings
+                stats[name] = length
 
     missing = list(filter(lambda q: q not in stats, queue_conf.keys()))
     for q in missing:

@@ -3,7 +3,7 @@ from setuptools import setup
 
 
 setup(name='check-rabbitmq-queues',
-      version='1.5.0',
+      version='1.5.1',
       description='Package for checking current length of RabbitMQ queues.',
       author='Opera Services Team',
       author_email='svc-code@opera.com',
