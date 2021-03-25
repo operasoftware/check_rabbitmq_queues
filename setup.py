@@ -10,7 +10,7 @@ setup(name='check-rabbitmq-queues',
       packages=['check_rabbitmq_queues'],
       install_requires=['pyrabbit2==1.0.7',
                         'argh==0.26.1',
-                        'PyYAML==3.13'],
+                        'PyYAML==5.4'],
       entry_points={
           'console_scripts': [
               'check_rabbitmq_queues = check_rabbitmq_queues.check:main'
